@@ -78,6 +78,11 @@ class VirtualPage extends Page
 
     private static $db = [
         "VersionID" => "Int",
+        'UseProxiedForCanonical' => 'Boolean',
+    ];
+
+    private static $defaults = [
+        'UseProxiedForCanonical' => true,
     ];
 
     private static $table_name = 'VirtualPage';
@@ -134,23 +139,24 @@ class VirtualPage extends Page
     }
 
     /**
-     * For VirtualPage, add a canonical link tag linking to the original page
-     * See TRAC #6828 & http://support.google.com/webmasters/bin/answer.py?hl=en&answer=139394
-     *
-     * @param boolean $includeTitle Show default <title>-tag, set to false for custom templating
-     * @return string The XHTML metatags
+     * @return array
      */
-    public function MetaTags($includeTitle = true)
+    public function MetaComponents()
     {
-        $tags = parent::MetaTags($includeTitle);
-        $copied = $this->CopyContentFrom();
-        if ($copied && $copied->exists()) {
-            $tags .= HTML::createTag('link', [
-                'rel' => 'canonical',
-                'href' => $copied->Link()
-            ]);
-            $tags .= "\n";
+        $tags = parent::MetaComponents();
+
+        if ($this->UseProxiedForCanonical) {
+            $copied = $this->CopyContentFrom();
+            if ($copied && $copied->exists()) {
+                $tags['canonical'] = [
+                    'attributes' => [
+                        'rel' => 'canonical',
+                        'content' => $copied->AbsoluteLink(),
+                    ],
+                ];
+            }
         }
+
         return $tags;
     }
 
@@ -281,6 +287,12 @@ class VirtualPage extends Page
                 'VirtualPageMessage',
                 '<div class="alert alert-info">' . implode('. ', $msgs) . '.</div>'
             ), 'CopyContentFromID');
+
+            $fields->insertAfter(
+                'ExtraMeta',
+                CheckboxField::create('UseProxiedForCanonical')
+                    ->setTitle('Use proxied page for canonical tag')
+            );
         });
 
         return parent::getCMSFields();
